@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国行政区划地图平台</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0-beta.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0-beta.1/mapbox-gl.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            overflow: hidden;
+        }
+        
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+        
+        #sidebar {
+            position: fixed;
+            top: 24px;
+            left: 0;
+            width: 320px;
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 0 12px 12px 0;
+            box-shadow: 2px 0 16px rgba(0,0,0,0.13);
+            padding: 18px 18px 18px 12px;
+            z-index: 50;
+            transition: transform 0.35s cubic-bezier(.4,1.3,.6,1);
+            max-height: 92vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-collapsed {
+            transform: translateX(-300px);
+        }
+        
+        #sidebar-toggle {
+            position: fixed;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #2c6bc0;
+            color: #fff;
+            border-radius: 0 8px 8px 0;
+            width: 36px;
+            height: 64px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.10);
+            font-size: 26px;
+            z-index: 60;
+            border: none;
+            outline: none;
+            transition: left 0.35s cubic-bezier(.4,1.3,.6,1);
+        }
+        #sidebar.sidebar-collapsed + #sidebar-toggle {
+            left: 0;
+        }
+        #sidebar-toggle:hover {
+            background: #174a8c;
+        }
+        
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .control-section {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+            position: relative;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .section-arrow {
+            font-size: 18px;
+            margin-right: 8px;
+            transition: transform 0.2s;
+        }
+        .section-collapsed .section-arrow {
+            transform: rotate(-90deg);
+        }
+        .section-expanded .section-arrow {
+            transform: rotate(0deg);
+        }
+        
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #222;
+            display: flex;
+            align-items: center;
+        }
+        
+        .layer-control {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 5px;
+            border-bottom: 1px solid #f5f5f5;
+            transition: background 0.2s;
+        }
+        
+        .layer-control:hover {
+            background: #f9f9f9;
+        }
+        
+        .layer-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .layer-count {
+            font-size: 12px;
+            color: #777;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+        
+        .settings-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #666;
+            font-size: 16px;
+            padding: 5px;
+        }
+        
+        .layer-settings {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f8f8;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .setting-group {
+            margin-bottom: 10px;
+        }
+        
+        .setting-label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 13px;
+            color: #555;
+        }
+        
+        .color-controls {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .color-input {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .rgb-inputs {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .rgb-input {
+            width: 50px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .opacity-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .opacity-slider {
+            flex: 1;
+        }
+        
+        .opacity-input {
+            width: 50px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .blend-mode-select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .line-width-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .line-width-slider {
+            flex: 1;
+        }
+        
+        .line-width-input {
+            width: 50px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .line-style-select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        #info-window {
+            position: fixed;
+            top: 50%;
+            right: 24px;
+            transform: translateY(-50%) translateX(120%);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 20px 18px 18px 18px;
+            max-width: 340px;
+            min-width: 260px;
+            min-height: 120px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+            z-index: 35;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s cubic-bezier(.4,1.3,.6,1);
+        }
+        #info-window.active {
+            transform: translateY(-50%) translateX(0);
+            pointer-events: auto;
+        }
+        
+        #info-window h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #2c6bc0;
+            font-size: 20px;
+        }
+        
+        #info-window .close-btn {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            font-size: 18px;
+            color: #888;
+        }
+        
+        @media (max-width: 900px) {
+            #info-window {
+                right: 0;
+                left: 0;
+                max-width: 100vw;
+                min-width: 0;
+            }
+        }
+        
+        .property-row {
+            display: flex;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        
+        .property-name {
+            font-weight: 600;
+            min-width: 80px;
+            color: #555;
+        }
+        
+        .property-value {
+            color: #333;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 3px;
+        }
+        
+        .legend-label {
+            font-size: 13px;
+        }
+        
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border-left-color: #2c6bc0;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #status-bar {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            z-index: 10;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: #777;
+        }
+        #legend-panel {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            min-width: 180px;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.13);
+            padding: 16px 18px 10px 18px;
+            z-index: 30;
+            transition: opacity 0.2s;
+            background: transparent;
+            overflow: visible;
+            /* 关键：relative 以便绝对定位背景 */
+            position: fixed;
+        }
+        #legend-panel .legend-item {
+            margin-bottom: 8px;
+        }
+        #legend-panel .legend-color {
+            width: 22px;
+            height: 22px;
+            margin-right: 10px;
+            border-radius: 4px;
+        }
+        #legend-panel .legend-label {
+            font-size: 13px;
+        }
+        #legend-panel-bg {
+            position: absolute;
+            left: 0; top: 0; right: 0; bottom: 0;
+            border-radius: 10px;
+            z-index: 1;
+            background: rgba(255,255,255,0.95);
+            transition: background 0.2s;
+            pointer-events: none;
+        }
+        #legend-panel .legend-content {
+            position: relative;
+            z-index: 2;
+        }
+        /* 自定义指北针样式 */
+        #custom-compass {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            width: 48px;
+            height: 120px;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+        #custom-compass svg {
+            width: 48px;
+            height: 90px;
+            display: block;
+        }
+        #custom-compass .compass-n {
+            font-size: 32px;
+            font-family: serif;
+            font-weight: bold;
+            color: #222;
+            margin-bottom: -8px;
+        }
+        /* 优化比例尺样式 */
+        .mapboxgl-ctrl.mapboxgl-ctrl-scale {
+            background: rgba(255,255,255,0.95) !important;
+            border-radius: 6px !important;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.10);
+            font-size: 14px !important;
+            color: #222 !important;
+            border: 1px solid #e0e0e0 !important;
+            padding: 2px 10px !important;
+            margin-top: 8px !important;
+        }
+        /* 自定义比例尺条 */
+        #custom-scale-bar {
+            width: 150px;
+            height: 28px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+        #scale-bar-svg {
+            width: 130px;
+            height: 14px;
+            display: block;
+        }
+        #scale-bar-label {
+            font-size: 13px;
+            color: #222;
+            margin-top: 2px;
+            font-family: Arial, sans-serif;
+        }
+        /* 顶部渐变色带header */
+        #main-header {
+            position: fixed;
+            left: 0; top: 0; width: 100vw; height: 64px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            padding-left: 32px;
+            box-sizing: border-box;
+            background: linear-gradient(120deg, rgb(28,81,134) 0%, rgb(69,177,123) 100%);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        #main-header .header-logo {
+            width: 48px;
+            height: 48px;
+            margin-right: 18px;
+            display: flex;
+            align-items: center;
+        }
+        #main-header .header-title {
+            font-family: 'SimHei', 'Heiti SC', '黑体', Arial, sans-serif;
+            font-size: 26px;
+            color: #fff;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.10);
+        }
+        /* 下方内容整体下移 */
+        body > #map,
+        #sidebar,
+        #custom-compass,
+        #legend-panel,
+        #info-window {
+            margin-top: 64px;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-header">
+        <div class="header-title">中国区域发展可视化信息平台</div>
+    </div>
+    <div id="map"></div>
+    <!-- 自定义指北针 -->
+    <div id="custom-compass">
+        <span class="compass-n">N</span>
+        <svg id="compass-svg" viewBox="0 0 100 180">
+            <circle cx="50" cy="100" r="45" stroke="#222" stroke-width="3" fill="none" />
+            <polygon points="50,20 65,100 50,160 35,100" fill="#222" />
+            <polygon points="50,20 65,100 50,160" fill="#fff" stroke="#222" stroke-width="2" />
+        </svg>
+        <div id="custom-scale-bar">
+            <svg id="scale-bar-svg" viewBox="0 0 130 14">
+                <rect x="0" y="2" width="26" height="10" fill="#fff" stroke="#222" stroke-width="1"/>
+                <rect x="26" y="2" width="26" height="10" fill="#222" stroke="#222" stroke-width="1"/>
+                <rect x="52" y="2" width="26" height="10" fill="#fff" stroke="#222" stroke-width="1"/>
+                <rect x="78" y="2" width="26" height="10" fill="#222" stroke="#222" stroke-width="1"/>
+                <rect x="104" y="2" width="26" height="10" fill="#fff" stroke="#222" stroke-width="1"/>
+            </svg>
+            <div id="scale-bar-label">5 cm</div>
+        </div>
+    </div>
+    
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">地图控制面板</div>
+        </div>
+        
+        <div class="control-section section-expanded" id="admin-section">
+            <div class="section-header" id="admin-section-header">
+                <span class="section-arrow">▼</span>
+                <span class="section-title">行政区划图层</span>
+            </div>
+            
+            <!-- 省级行政区设置 -->
+            <div class="layer-control expandable" data-layer="province">
+                <div class="layer-label layer-expand-toggle">
+                    <input id="province-layer" type="checkbox" checked>
+                    <label for="province-layer">省级行政区</label>
+                    <span id="province-count" class="layer-count">34</span>
+                    <span class="expand-arrow">▶</span>
+                </div>
+            </div>
+            <div class="layer-settings" id="province-settings" style="display:none;">
+                <div class="setting-group">
+                    <label class="setting-label">填充颜色</label>
+                    <div class="color-controls">
+                        <input type="color" class="color-input" id="province-fill-color" value="#c83232">
+                        <div class="rgb-inputs">
+                            <input type="number" class="rgb-input" id="province-fill-r" min="0" max="255" value="200">
+                            <input type="number" class="rgb-input" id="province-fill-g" min="0" max="255" value="50">
+                            <input type="number" class="rgb-input" id="province-fill-b" min="0" max="255" value="50">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界颜色</label>
+                    <div class="color-controls">
+                        <input type="color" class="color-input" id="province-border-color" value="#ff0000">
+                        <div class="rgb-inputs">
+                            <input type="number" class="rgb-input" id="province-border-r" min="0" max="255" value="255">
+                            <input type="number" class="rgb-input" id="province-border-g" min="0" max="255" value="0">
+                            <input type="number" class="rgb-input" id="province-border-b" min="0" max="255" value="0">
+                        </div>
+                    </div>
+                </div>
+                <!-- 新增：边界透明度 -->
+                <div class="setting-group">
+                    <label class="setting-label">边界透明度</label>
+                    <div class="opacity-control">
+                        <input type="range" class="opacity-slider" id="province-border-opacity-slider" min="0" max="100" value="100">
+                        <input type="number" class="opacity-input" id="province-border-opacity-input" min="0" max="100" value="100">
+                        <span>%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">填充透明度</label>
+                    <div class="opacity-control">
+                        <input type="range" class="opacity-slider" id="province-opacity-slider" min="0" max="100" value="30">
+                        <input type="number" class="opacity-input" id="province-opacity-input" min="0" max="100" value="30">
+                        <span>%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界宽度</label>
+                    <div class="line-width-control">
+                        <input type="range" class="line-width-slider" id="province-line-width-slider" min="0.5" max="5" step="0.1" value="1">
+                        <input type="number" class="line-width-input" id="province-line-width-input" min="0.5" max="5" step="0.1" value="1">
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界线型</label>
+                    <select class="line-style-select" id="province-line-style">
+                        <option value="solid">实线</option>
+                        <option value="dashed">虚线</option>
+                        <option value="dotted">点画线</option>
+                        <option value="dash-dot">点虚线</option>
+                    </select>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">图层混合模式</label>
+                    <select class="blend-mode-select" id="province-blend-mode">
+                        <option value="normal">正常</option>
+                        <option value="multiply">正片叠底</option>
+                        <option value="screen">滤色</option>
+                        <option value="overlay">叠加</option>
+                        <option value="darken">变暗</option>
+                        <option value="lighten">变亮</option>
+                        <option value="color-dodge">颜色减淡</option>
+                        <option value="color-burn">颜色加深</option>
+                        <option value="hard-light">强光</option>
+                        <option value="soft-light">柔光</option>
+                        <option value="difference">差值</option>
+                        <option value="exclusion">排除</option>
+                        <option value="hue">色相</option>
+                        <option value="saturation">饱和度</option>
+                        <option value="color">颜色</option>
+                        <option value="luminosity">明度</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 市级行政区设置 -->
+            <div class="layer-control expandable" data-layer="city">
+                <div class="layer-label layer-expand-toggle">
+                    <input id="city-layer" type="checkbox" checked>
+                    <label for="city-layer">市级行政区</label>
+                    <span id="city-count" class="layer-count">334</span>
+                    <span class="expand-arrow">▶</span>
+                </div>
+            </div>
+            <div class="layer-settings" id="city-settings" style="display:none;">
+                <div class="setting-group">
+                    <label class="setting-label">填充颜色</label>
+                    <div class="color-controls">
+                        <input type="color" class="color-input" id="city-fill-color" value="#3264c8">
+                        <div class="rgb-inputs">
+                            <input type="number" class="rgb-input" id="city-fill-r" min="0" max="255" value="50">
+                            <input type="number" class="rgb-input" id="city-fill-g" min="0" max="255" value="100">
+                            <input type="number" class="rgb-input" id="city-fill-b" min="0" max="255" value="200">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界颜色</label>
+                    <div class="color-controls">
+                        <input type="color" class="color-input" id="city-border-color" value="#0055ff">
+                        <div class="rgb-inputs">
+                            <input type="number" class="rgb-input" id="city-border-r" min="0" max="255" value="0">
+                            <input type="number" class="rgb-input" id="city-border-g" min="0" max="255" value="85">
+                            <input type="number" class="rgb-input" id="city-border-b" min="0" max="255" value="255">
+                        </div>
+                    </div>
+                </div>
+                <!-- 新增：边界透明度 -->
+                <div class="setting-group">
+                    <label class="setting-label">边界透明度</label>
+                    <div class="opacity-control">
+                        <input type="range" class="opacity-slider" id="city-border-opacity-slider" min="0" max="100" value="100">
+                        <input type="number" class="opacity-input" id="city-border-opacity-input" min="0" max="100" value="100">
+                        <span>%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">填充透明度</label>
+                    <div class="opacity-control">
+                        <input type="range" class="opacity-slider" id="city-opacity-slider" min="0" max="100" value="30">
+                        <input type="number" class="opacity-input" id="city-opacity-input" min="0" max="100" value="30">
+                        <span>%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界宽度</label>
+                    <div class="line-width-control">
+                        <input type="range" class="line-width-slider" id="city-line-width-slider" min="0.5" max="5" step="0.1" value="1">
+                        <input type="number" class="line-width-input" id="city-line-width-input" min="0.5" max="5" step="0.1" value="1">
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界线型</label>
+                    <select class="line-style-select" id="city-line-style">
+                        <option value="solid">实线</option>
+                        <option value="dashed">虚线</option>
+                        <option value="dotted">点画线</option>
+                        <option value="dash-dot">点虚线</option>
+                    </select>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">图层混合模式</label>
+                    <select class="blend-mode-select" id="city-blend-mode">
+                        <option value="normal">正常</option>
+                        <option value="multiply">正片叠底</option>
+                        <option value="screen">滤色</option>
+                        <option value="overlay">叠加</option>
+                        <option value="darken">变暗</option>
+                        <option value="lighten">变亮</option>
+                        <option value="color-dodge">颜色减淡</option>
+                        <option value="color-burn">颜色加深</option>
+                        <option value="hard-light">强光</option>
+                        <option value="soft-light">柔光</option>
+                        <option value="difference">差值</option>
+                        <option value="exclusion">排除</option>
+                        <option value="hue">色相</option>
+                        <option value="saturation">饱和度</option>
+                        <option value="color">颜色</option>
+                        <option value="luminosity">明度</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 县级行政区设置 -->
+            <div class="layer-control expandable" data-layer="county">
+                <div class="layer-label layer-expand-toggle">
+                    <input id="county-layer" type="checkbox">
+                    <label for="county-layer">县级行政区</label>
+                    <span id="county-count" class="layer-count">2842</span>
+                    <span class="expand-arrow">▶</span>
+                </div>
+            </div>
+            <div class="layer-settings" id="county-settings" style="display:none;">
+                <div class="setting-group">
+                    <label class="setting-label">填充颜色</label>
+                    <div class="color-controls">
+                        <input type="color" class="color-input" id="county-fill-color" value="#32b450">
+                        <div class="rgb-inputs">
+                            <input type="number" class="rgb-input" id="county-fill-r" min="0" max="255" value="50">
+                            <input type="number" class="rgb-input" id="county-fill-g" min="0" max="255" value="180">
+                            <input type="number" class="rgb-input" id="county-fill-b" min="0" max="255" value="80">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界颜色</label>
+                    <div class="color-controls">
+                        <input type="color" class="color-input" id="county-border-color" value="#00aa55">
+                        <div class="rgb-inputs">
+                            <input type="number" class="rgb-input" id="county-border-r" min="0" max="255" value="0">
+                            <input type="number" class="rgb-input" id="county-border-g" min="0" max="255" value="170">
+                            <input type="number" class="rgb-input" id="county-border-b" min="0" max="255" value="85">
+                        </div>
+                    </div>
+                </div>
+                <!-- 新增：边界透明度 -->
+                <div class="setting-group">
+                    <label class="setting-label">边界透明度</label>
+                    <div class="opacity-control">
+                        <input type="range" class="opacity-slider" id="county-border-opacity-slider" min="0" max="100" value="100">
+                        <input type="number" class="opacity-input" id="county-border-opacity-input" min="0" max="100" value="100">
+                        <span>%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">填充透明度</label>
+                    <div class="opacity-control">
+                        <input type="range" class="opacity-slider" id="county-opacity-slider" min="0" max="100" value="30">
+                        <input type="number" class="opacity-input" id="county-opacity-input" min="0" max="100" value="30">
+                        <span>%</span>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界宽度</label>
+                    <div class="line-width-control">
+                        <input type="range" class="line-width-slider" id="county-line-width-slider" min="0.5" max="5" step="0.1" value="1">
+                        <input type="number" class="line-width-input" id="county-line-width-input" min="0.5" max="5" step="0.1" value="1">
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">边界线型</label>
+                    <select class="line-style-select" id="county-line-style">
+                        <option value="solid">实线</option>
+                        <option value="dashed">虚线</option>
+                        <option value="dotted">点画线</option>
+                        <option value="dash-dot">点虚线</option>
+                    </select>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">图层混合模式</label>
+                    <select class="blend-mode-select" id="county-blend-mode">
+                        <option value="normal">正常</option>
+                        <option value="multiply">正片叠底</option>
+                        <option value="screen">滤色</option>
+                        <option value="overlay">叠加</option>
+                        <option value="darken">变暗</option>
+                        <option value="lighten">变亮</option>
+                        <option value="color-dodge">颜色减淡</option>
+                        <option value="color-burn">颜色加深</option>
+                        <option value="hard-light">强光</option>
+                        <option value="soft-light">柔光</option>
+                        <option value="difference">差值</option>
+                        <option value="exclusion">排除</option>
+                        <option value="hue">色相</option>
+                        <option value="saturation">饱和度</option>
+                        <option value="color">颜色</option>
+                        <option value="luminosity">明度</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-section section-expanded" id="basemap-section">
+            <div class="section-header" id="basemap-section-header">
+                <span class="section-arrow">▼</span>
+                <span class="section-title">底图图层</span>
+            </div>
+            <div class="layer-control">
+                <div class="layer-label">
+                    <input id="satellite-layer" type="radio" name="basemap" checked>
+                    <label for="satellite-layer">卫星影像</label>
+                </div>
+            </div>
+            <div class="layer-control">
+                <div class="layer-label">
+                    <input id="clean-layer" type="radio" name="basemap">
+                    <label for="clean-layer">Mapbox Clean</label>
+                </div>
+            </div>
+        </div>
+        
+        <div id="legend-panel">
+            <div id="legend-panel-bg"></div>
+            <div class="legend-content">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="font-weight: bold; color: #333;">图层图例</span>
+                    <span style="font-size: 12px; color: #888; margin-left: 10px;">透明度</span>
+                    <input type="range" id="legend-opacity-slider" min="0" max="100" value="95" style="width: 70px; margin-left: 4px;">
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" id="legend-province-color"></div>
+                    <div class="legend-label">省级行政区</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" id="legend-city-color"></div>
+                    <div class="legend-label">市级行政区</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" id="legend-county-color"></div>
+                    <div class="legend-label">县级行政区</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <button id="sidebar-toggle" title="展开/收起面板">▶</button>
+    
+    <!-- 新增的展开面板按钮 -->
+    <div id="open-sidebar">≡</div>
+    
+    <div id="info-window">
+        <button id="close-info" class="close-btn">×</button>
+        <h3 id="feature-name">行政区名称</h3>
+        <div id="feature-properties"></div>
+    </div>
+    
+    <div id="status-bar">坐标: 正在加载...</div>
+    
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        // 设置您的Mapbox访问令牌
+        mapboxgl.accessToken = 'pk.eyJ1IjoiY2hpbmxpMCIsImEiOiJja3gybDVpazQxcGhhMnBxb21jMDFmdThhIn0.VOrx0kqiBQVKBMZyAaE0UQ';
+        
+        // 行政区划数据URL
+        const GEOJSON_URLS = {
+            province: 'https://raw.githubusercontent.com/chinli-jql/GIS-database/main/%E4%B8%AD%E5%9B%BD_%E7%9C%81.geojson',
+            city: 'https://raw.githubusercontent.com/chinli-jql/GIS-database/main/%E4%B8%AD%E5%9B%BD_%E5%B8%82.geojson',
+            county: 'https://raw.githubusercontent.com/chinli-jql/GIS-database/main/%E4%B8%AD%E5%9B%BD_%E5%8E%BF.geojson'
+        };
+        
+        // 底图样式URL
+        const BASEMAP_STYLES = {
+            satellite: 'mapbox://styles/mapbox/satellite-v9',
+            clean: 'https://api.mapbox.com/styles/v1/giszxy/clrk66nu4000p01pvfoy38t8z?access_token=pk.eyJ1IjoiZ2lzenh5IiwiYSI6ImNsbzJwbTZtNjAzdTYycnJ5MWlveXdwOTUifQ.JJp1InxcLGCc_s5cPV_C6Q'
+        };
+        
+        // 图层配置
+        const ADMIN_LAYERS = {
+            province: {
+                id: 'province-layer',
+                borderId: 'province-layer-border',
+                sourceId: 'province-source',
+                fillColor: 'rgba(245, 148, 148, 0.3)',
+                outlineColor: 'rgb(156,156,156)',
+                lineWidth: 2,
+                lineStyle: 'solid'
+            },
+            city: {
+                id: 'city-layer',
+                borderId: 'city-layer-border',
+                sourceId: 'city-source',
+                fillColor: 'rgba(255,255,255,0)',
+                outlineColor: 'rgb(130,130,130)',
+                lineWidth: 1,
+                lineStyle: 'solid'
+            },
+            county: {
+                id: 'county-layer',
+                borderId: 'county-layer-border',
+                sourceId: 'county-source',
+                fillColor: 'rgba(255,255,255,0)',
+                outlineColor: 'rgb(120,120,120)',
+                lineWidth: 1,
+                lineStyle: 'dotted'
+            }
+        };
+        
+        // 线型对应的dasharray值
+        const LINE_STYLES = {
+            solid: [],
+            dashed: [2, 2],
+            dotted: [0.5, 2],
+            'dash-dot': [2, 2, 0.5, 2]
+        };
+        
+        // 初始化地图
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: BASEMAP_STYLES.clean, // 默认mapbox clean
+            center: [104.1954, 35.8617], // 中国中心点
+            zoom: 3.5,
+            maxZoom: 16,
+            minZoom: 3
+        });
+        
+        // 移除默认比例尺，使用自定义比例尺
+        // 自定义指北针旋转联动
+        map.on('rotate', function() {
+            const compass = document.getElementById('compass-svg');
+            if (compass) {
+                const bearing = map.getBearing();
+                compass.style.transform = `rotate(${-bearing}deg)`;
+            }
+        });
+        map.on('load', function() {
+            const compass = document.getElementById('compass-svg');
+            if (compass) {
+                const bearing = map.getBearing();
+                compass.style.transform = `rotate(${-bearing}deg)`;
+            }
+        });
+        
+        // 状态管理
+        let layerVisibility = {
+            province: true,
+            city: true,
+            county: false
+        };
+        let selectedFeature = null;
+        let geoJsonData = {
+            province: null,
+            city: null,
+            county: null
+        };
+        
+        // DOM元素引用
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const statusBar = document.getElementById('status-bar');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        
+        // 初始化加载状态
+        let layersLoaded = 0;
+        const totalLayers = Object.keys(ADMIN_LAYERS).length;
+        
+        // 主加载函数
+        async function initMap() {
+            try {
+                // 加载行政区划GeoJSON数据
+                await loadGeoJsonData();
+                
+                // 添加行政区划图层
+                addAdminLayers();
+                
+                // 添加高亮图层
+                addHighlightLayer();
+                
+                // 添加UI事件
+                setupUIEvents();
+                
+                // 添加地图事件
+                setupMapEvents();
+                
+                // 更新加载状态
+                updateLoadingStatus();
+                
+            } catch (error) {
+                console.error('初始化地图时出错:', error);
+                statusBar.textContent = '地图加载失败，请刷新页面重试';
+                loadingOverlay.style.display = 'none';
+            }
+        }
+        
+        // 加载GeoJSON数据
+        async function loadGeoJsonData() {
+            for (const type in GEOJSON_URLS) {
+                const response = await fetch(GEOJSON_URLS[type]);
+                geoJsonData[type] = await response.json();
+                layersLoaded++;
+                updateLoadingStatus();
+                
+                // 更新要素计数
+                document.getElementById(`${type}-count`).textContent = 
+                    geoJsonData[type].features.length;
+            }
+        }
+        
+        // 添加行政区划图层
+        function addAdminLayers() {
+            for (const type in ADMIN_LAYERS) {
+                const layerConfig = ADMIN_LAYERS[type];
+                
+                // 添加数据源
+                map.addSource(layerConfig.sourceId, {
+                    type: 'geojson',
+                    data: geoJsonData[type]
+                });
+                
+                // 添加填充图层
+                map.addLayer({
+                    id: layerConfig.id,
+                    type: 'fill',
+                    source: layerConfig.sourceId,
+                    paint: {
+                        'fill-color': layerConfig.fillColor,
+                        'fill-outline-color': layerConfig.outlineColor,
+                        'fill-opacity': parseFloat(layerConfig.fillColor.split(',')[3].trim().replace(')', ''))
+                    }
+                });
+                
+                // 添加边界图层
+                map.addLayer({
+                    id: layerConfig.borderId,
+                    type: 'line',
+                    source: layerConfig.sourceId,
+                    paint: {
+                        'line-color': layerConfig.outlineColor,
+                        'line-width': layerConfig.lineWidth
+                    }
+                });
+                
+                // 设置线型
+                updateLineStyle(type);
+                
+                // 设置可见性
+                map.setLayoutProperty(layerConfig.id, 'visibility', layerVisibility[type] ? 'visible' : 'none');
+                map.setLayoutProperty(layerConfig.borderId, 'visibility', layerVisibility[type] ? 'visible' : 'none');
+            }
+        }
+        
+        // 更新线型
+        function updateLineStyle(type) {
+            const layerConfig = ADMIN_LAYERS[type];
+            const dashArray = LINE_STYLES[layerConfig.lineStyle];
+            
+            if (map.getLayer(layerConfig.borderId)) {
+                if (dashArray.length > 0) {
+                    map.setPaintProperty(layerConfig.borderId, 'line-dasharray', dashArray);
+                } else {
+                    map.setPaintProperty(layerConfig.borderId, 'line-dasharray', null);
+                }
+            }
+        }
+        
+        // 添加高亮图层
+        function addHighlightLayer() {
+            map.addSource('highlight-source', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+            
+            map.addLayer({
+                id: 'highlight-layer',
+                type: 'line',
+                source: 'highlight-source',
+                paint: {
+                    'line-color': '#FF0000',
+                    'line-width': 4,
+                    'line-opacity': 0.8
+                }
+            });
+        }
+        
+        // 设置UI事件
+        function setupUIEvents() {
+            // 行政区划图层展开/折叠
+            const adminSection = document.getElementById('admin-section');
+            const adminHeader = document.getElementById('admin-section-header');
+            adminHeader.addEventListener('click', () => {
+                if (adminSection.classList.contains('section-expanded')) {
+                    adminSection.classList.remove('section-expanded');
+                    adminSection.classList.add('section-collapsed');
+                    Array.from(adminSection.children).forEach((el, i) => { if (i > 0) el.style.display = 'none'; });
+                } else {
+                    adminSection.classList.remove('section-collapsed');
+                    adminSection.classList.add('section-expanded');
+                    Array.from(adminSection.children).forEach((el, i) => { if (i > 0) el.style.display = ''; });
+                }
+            });
+            // 底图图层展开/折叠
+            const basemapSection = document.getElementById('basemap-section');
+            const basemapHeader = document.getElementById('basemap-section-header');
+            basemapHeader.addEventListener('click', () => {
+                if (basemapSection.classList.contains('section-expanded')) {
+                    basemapSection.classList.remove('section-expanded');
+                    basemapSection.classList.add('section-collapsed');
+                    Array.from(basemapSection.children).forEach((el, i) => { if (i > 0) el.style.display = 'none'; });
+                } else {
+                    basemapSection.classList.remove('section-collapsed');
+                    basemapSection.classList.add('section-expanded');
+                    Array.from(basemapSection.children).forEach((el, i) => { if (i > 0) el.style.display = ''; });
+                }
+            });
+            // 图例透明度滑块
+            const legendPanel = document.getElementById('legend-panel');
+            const legendOpacitySlider = document.getElementById('legend-opacity-slider');
+            const legendPanelBg = document.getElementById('legend-panel-bg');
+            legendOpacitySlider.addEventListener('input', () => {
+                let v = parseInt(legendOpacitySlider.value);
+                if (isNaN(v)) v = 95;
+                v = Math.max(0, Math.min(100, v));
+                legendPanelBg.style.background = `rgba(255,255,255,${(v/100).toFixed(2)})`;
+            });
+            // 初始化一次
+            (function(){
+                let v = parseInt(legendOpacitySlider.value);
+                if (isNaN(v)) v = 95;
+                v = Math.max(0, Math.min(100, v));
+                legendPanelBg.style.background = `rgba(255,255,255,${(v/100).toFixed(2)})`;
+            })();
+            
+            // 图层设置展开/收起
+            document.querySelectorAll('.layer-expand-toggle').forEach(toggle => {
+                toggle.addEventListener('click', (e) => {
+                    // 防止点击checkbox时也触发
+                    if (e.target.tagName === 'INPUT') return;
+                    const parent = toggle.closest('.expandable');
+                    const layerType = parent.dataset.layer;
+                    const settingsPanel = document.getElementById(`${layerType}-settings`);
+                    const arrow = toggle.querySelector('.expand-arrow');
+                    if (settingsPanel.style.display === 'block') {
+                        settingsPanel.style.display = 'none';
+                        arrow.textContent = '▶';
+                    } else {
+                        settingsPanel.style.display = 'block';
+                        arrow.textContent = '▼';
+                    }
+                });
+            });
+            
+            // 颜色选择器事件
+            setupColorEvents('province');
+            setupColorEvents('city');
+            setupColorEvents('county');
+            // 新增：边界透明度事件
+            setupBorderOpacityEvents('province');
+            setupBorderOpacityEvents('city');
+            setupBorderOpacityEvents('county');
+            // 新增：图例联动
+            setupLegendSync('province');
+            setupLegendSync('city');
+            setupLegendSync('county');
+            
+            // 透明度控制事件
+            setupOpacityEvents('province');
+            setupOpacityEvents('city');
+            setupOpacityEvents('county');
+            
+            // 线宽控制事件
+            setupLineWidthEvents('province');
+            setupLineWidthEvents('city');
+            setupLineWidthEvents('county');
+            
+            // 线型控制事件
+            setupLineStyleEvents('province');
+            setupLineStyleEvents('city');
+            setupLineStyleEvents('county');
+            
+            // 混合模式事件
+            setupBlendModeEvents('province');
+            setupBlendModeEvents('city');
+            setupBlendModeEvents('county');
+            
+            // 行政区划图层控制
+            document.getElementById('province-layer').addEventListener('change', () => {
+                toggleAdminLayerVisibility('province');
+            });
+            document.getElementById('city-layer').addEventListener('change', () => {
+                toggleAdminLayerVisibility('city');
+            });
+            document.getElementById('county-layer').addEventListener('change', () => {
+                toggleAdminLayerVisibility('county');
+            });
+            
+            // 底图控制
+            document.getElementById('satellite-layer').addEventListener('change', () => {
+                changeBasemap('satellite');
+            });
+            document.getElementById('clean-layer').addEventListener('change', () => {
+                changeBasemap('clean');
+            });
+            
+            // 侧边栏控制（左侧收起/右侧展开）
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('sidebar-collapsed');
+                if (sidebar.classList.contains('sidebar-collapsed')) {
+                    sidebarToggle.innerHTML = '◀';
+                    sidebarToggle.title = '展开面板';
+                } else {
+                    sidebarToggle.innerHTML = '▶';
+                    sidebarToggle.title = '收起面板';
+                }
+            });
+            // 初始化按钮状态
+            if (sidebar.classList.contains('sidebar-collapsed')) {
+                sidebarToggle.innerHTML = '◀';
+                sidebarToggle.title = '展开面板';
+            } else {
+                sidebarToggle.innerHTML = '▶';
+                sidebarToggle.title = '收起面板';
+            }
+            
+            // 信息窗口关闭
+            document.getElementById('close-info').addEventListener('click', () => {
+                document.getElementById('info-window').classList.remove('active');
+            });
+        }
+        
+        // 设置颜色事件
+        function setupColorEvents(layerType) {
+            // 填充颜色选择器
+            const fillColorPicker = document.getElementById(`${layerType}-fill-color`);
+            const fillR = document.getElementById(`${layerType}-fill-r`);
+            const fillG = document.getElementById(`${layerType}-fill-g`);
+            const fillB = document.getElementById(`${layerType}-fill-b`);
+            
+            // 边界颜色选择器
+            const borderColorPicker = document.getElementById(`${layerType}-border-color`);
+            const borderR = document.getElementById(`${layerType}-border-r`);
+            const borderG = document.getElementById(`${layerType}-border-g`);
+            const borderB = document.getElementById(`${layerType}-border-b`);
+            
+            // 填充颜色RGB输入变化
+            [fillR, fillG, fillB].forEach(input => {
+                input.addEventListener('input', () => {
+                    const r = parseInt(fillR.value) || 0;
+                    const g = parseInt(fillG.value) || 0;
+                    const b = parseInt(fillB.value) || 0;
+                    const opacity = parseFloat(document.getElementById(`${layerType}-opacity-input`).value) / 100;
+                    
+                    // 更新颜色选择器
+                    fillColorPicker.value = rgbToHex(r, g, b);
+                    
+                    // 更新地图样式
+                    updateFillColor(layerType, r, g, b, opacity);
+                });
+            });
+            
+            // 填充颜色选择器变化
+            fillColorPicker.addEventListener('input', () => {
+                const hex = fillColorPicker.value;
+                const rgb = hexToRgb(hex);
+                
+                // 更新RGB输入框
+                fillR.value = rgb.r;
+                fillG.value = rgb.g;
+                fillB.value = rgb.b;
+                
+                // 更新地图样式
+                const opacity = parseFloat(document.getElementById(`${layerType}-opacity-input`).value) / 100;
+                updateFillColor(layerType, rgb.r, rgb.g, rgb.b, opacity);
+            });
+            
+            // 边界颜色RGB输入变化
+            [borderR, borderG, borderB].forEach(input => {
+                input.addEventListener('input', () => {
+                    const r = parseInt(borderR.value) || 0;
+                    const g = parseInt(borderG.value) || 0;
+                    const b = parseInt(borderB.value) || 0;
+                    
+                    // 更新颜色选择器
+                    borderColorPicker.value = rgbToHex(r, g, b);
+                    
+                    // 更新地图样式
+                    updateBorderColor(layerType, r, g, b);
+                });
+            });
+            
+            // 边界颜色选择器变化
+            borderColorPicker.addEventListener('input', () => {
+                const hex = borderColorPicker.value;
+                const rgb = hexToRgb(hex);
+                
+                // 更新RGB输入框
+                borderR.value = rgb.r;
+                borderG.value = rgb.g;
+                borderB.value = rgb.b;
+                
+                // 更新地图样式
+                updateBorderColor(layerType, rgb.r, rgb.g, rgb.b);
+            });
+        }
+        
+        // 设置透明度事件
+        function setupOpacityEvents(layerType) {
+            const slider = document.getElementById(`${layerType}-opacity-slider`);
+            const input = document.getElementById(`${layerType}-opacity-input`);
+            
+            // 滑块变化
+            slider.addEventListener('input', () => {
+                input.value = slider.value;
+                updateOpacity(layerType, slider.value);
+            });
+            
+            // 输入框变化
+            input.addEventListener('input', () => {
+                let value = parseInt(input.value);
+                if (isNaN(value)) value = 0;
+                if (value < 0) value = 0;
+                if (value > 100) value = 100;
+                
+                slider.value = value;
+                input.value = value;
+                
+                updateOpacity(layerType, value);
+            });
+        }
+        
+        // 设置线宽事件
+        function setupLineWidthEvents(layerType) {
+            const slider = document.getElementById(`${layerType}-line-width-slider`);
+            const input = document.getElementById(`${layerType}-line-width-input`);
+            
+            // 滑块变化
+            slider.addEventListener('input', () => {
+                input.value = slider.value;
+                updateLineWidth(layerType, parseFloat(slider.value));
+            });
+            
+            // 输入框变化
+            input.addEventListener('input', () => {
+                let value = parseFloat(input.value);
+                if (isNaN(value)) value = 1;
+                if (value < 0.5) value = 0.5;
+                if (value > 5) value = 5;
+                
+                slider.value = value;
+                input.value = value;
+                
+                updateLineWidth(layerType, value);
+            });
+        }
+        
+        // 设置线型事件
+        function setupLineStyleEvents(layerType) {
+            const select = document.getElementById(`${layerType}-line-style`);
+            
+            select.addEventListener('change', () => {
+                ADMIN_LAYERS[layerType].lineStyle = select.value;
+                updateLineStyle(layerType);
+            });
+        }
+        
+        // 设置混合模式事件
+        function setupBlendModeEvents(layerType) {
+            const select = document.getElementById(`${layerType}-blend-mode`);
+            
+            select.addEventListener('change', () => {
+                updateBlendMode(layerType, select.value);
+            });
+        }
+        
+        // 新增：边界透明度事件
+        function setupBorderOpacityEvents(layerType) {
+            const slider = document.getElementById(`${layerType}-border-opacity-slider`);
+            const input = document.getElementById(`${layerType}-border-opacity-input`);
+            // 滑块变化
+            slider.addEventListener('input', () => {
+                input.value = slider.value;
+                updateBorderOpacity(layerType, slider.value);
+            });
+            // 输入框变化
+            input.addEventListener('input', () => {
+                let value = parseInt(input.value);
+                if (isNaN(value)) value = 0;
+                if (value < 0) value = 0;
+                if (value > 100) value = 100;
+                slider.value = value;
+                input.value = value;
+                updateBorderOpacity(layerType, value);
+            });
+        }
+        // 新增：更新边界透明度
+        function updateBorderOpacity(layerType, value) {
+            const borderLayerId = ADMIN_LAYERS[layerType].borderId;
+            const opacity = value / 100;
+            if (map.getLayer(borderLayerId)) {
+                map.setPaintProperty(borderLayerId, 'line-opacity', opacity);
+            }
+        }
+        
+        // 更新填充颜色
+        function updateFillColor(layerType, r, g, b, opacity) {
+            const layerId = ADMIN_LAYERS[layerType].id;
+            const color = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+            
+            if (map.getLayer(layerId)) {
+                map.setPaintProperty(layerId, 'fill-color', color);
+            }
+        }
+        
+        // 更新边界颜色
+        function updateBorderColor(layerType, r, g, b) {
+            const layerId = ADMIN_LAYERS[layerType].id;
+            const borderLayerId = ADMIN_LAYERS[layerType].borderId;
+            const color = `rgb(${r}, ${g}, ${b})`;
+            
+            if (map.getLayer(layerId)) {
+                map.setPaintProperty(layerId, 'fill-outline-color', color);
+            }
+            
+            if (map.getLayer(borderLayerId)) {
+                map.setPaintProperty(borderLayerId, 'line-color', color);
+            }
+        }
+        
+        // 更新透明度
+        function updateOpacity(layerType, value) {
+            const layerId = ADMIN_LAYERS[layerType].id;
+            const opacity = value / 100;
+            
+            // 获取当前颜色值
+            const currentColor = map.getPaintProperty(layerId, 'fill-color');
+            
+            if (currentColor && typeof currentColor === 'string') {
+                // 解析当前颜色值
+                const match = currentColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                
+                if (match) {
+                    const r = match[1];
+                    const g = match[2];
+                    const b = match[3];
+                    const newColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                    
+                    if (map.getLayer(layerId)) {
+                        map.setPaintProperty(layerId, 'fill-color', newColor);
+                    }
+                }
+            }
+        }
+        
+        // 更新线宽
+        function updateLineWidth(layerType, value) {
+            const borderLayerId = ADMIN_LAYERS[layerType].borderId;
+            ADMIN_LAYERS[layerType].lineWidth = value;
+            
+            if (map.getLayer(borderLayerId)) {
+                map.setPaintProperty(borderLayerId, 'line-width', value);
+            }
+        }
+        
+        // 更新混合模式
+        function updateBlendMode(layerType, blendMode) {
+            const layerId = ADMIN_LAYERS[layerType].id;
+            
+            if (map.getLayer(layerId)) {
+                map.setPaintProperty(layerId, 'fill-blend-mode', blendMode);
+            }
+        }
+        
+        // 切换行政区划图层可见性
+        function toggleAdminLayerVisibility(type) {
+            const layerConfig = ADMIN_LAYERS[type];
+            const visibility = document.getElementById(`${type}-layer`).checked;
+            
+            layerVisibility[type] = visibility;
+            
+            if (map.getLayer(layerConfig.id)) {
+                map.setLayoutProperty(layerConfig.id, 'visibility', visibility ? 'visible' : 'none');
+                map.setLayoutProperty(layerConfig.borderId, 'visibility', visibility ? 'visible' : 'none');
+            }
+        }
+        
+        // 切换底图
+        function changeBasemap(styleType) {
+            // 保存当前图层可见性状态
+            const currentVisibility = {...layerVisibility};
+            
+            // 切换底图
+            map.setStyle(BASEMAP_STYLES[styleType]);
+            
+            // 底图加载完成后重新添加图层
+            map.once('style.load', () => {
+                // 重新添加行政区划图层
+                addAdminLayers();
+                
+                // 重新添加高亮图层
+                addHighlightLayer();
+                
+                // 恢复高亮选中的行政区
+                if (selectedFeature) {
+                    highlightSelectedFeature(selectedFeature);
+                }
+                
+                // 重新设置图层可见性
+                for (const type in layerVisibility) {
+                    layerVisibility[type] = currentVisibility[type];
+                    map.setLayoutProperty(ADMIN_LAYERS[type].id, 'visibility', currentVisibility[type] ? 'visible' : 'none');
+                    map.setLayoutProperty(ADMIN_LAYERS[type].borderId, 'visibility', currentVisibility[type] ? 'visible' : 'none');
+                    
+                    // 更新UI状态
+                    document.getElementById(`${type}-layer`).checked = currentVisibility[type];
+                }
+                
+                // 重新绑定事件
+                setupMapEvents();
+            });
+        }
+        
+        // 设置地图事件
+        function setupMapEvents() {
+            // 地图移动时更新坐标
+            map.on('move', updateCoordinates);
+            
+            // 行政区划图层鼠标交互
+            for (const type in ADMIN_LAYERS) {
+                const layerId = ADMIN_LAYERS[type].id;
+                
+                map.on('mouseenter', layerId, () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+                
+                map.on('mouseleave', layerId, () => {
+                    map.getCanvas().style.cursor = '';
+                });
+            }
+            
+            // 行政区划点击事件
+            map.on('click', (e) => {
+                const clickLayers = [
+                    'province-layer', 
+                    'city-layer', 
+                    'county-layer',
+                    'province-layer-border',
+                    'city-layer-border',
+                    'county-layer-border'
+                ];
+                
+                // 查询所有可点击的图层
+                const features = map.queryRenderedFeatures(e.point, {
+                    layers: clickLayers
+                });
+                
+                if (features.length > 0) {
+                    // 找到真实的行政区划特征
+                    const feature = features.find(f => !f.layer.id.includes('-border'));
+                    
+                    if (feature) {
+                        displayFeatureInfo(feature);
+                        highlightSelectedFeature(feature);
+                    }
+                } else {
+                    // 点击空白处
+                    document.getElementById('info-window').classList.remove('active');
+                    clearHighlight();
+                }
+            });
+        }
+        
+        // 高亮选中的行政区
+        function highlightSelectedFeature(feature) {
+            selectedFeature = feature;
+            
+            // 更新高亮数据源
+            map.getSource('highlight-source').setData({
+                "type": "FeatureCollection",
+                "features": [feature]
+            });
+        }
+        
+        // 清除高亮
+        function clearHighlight() {
+            selectedFeature = null;
+            map.getSource('highlight-source').setData({
+                "type": "FeatureCollection",
+                "features": []
+            });
+        }
+        
+        // 更新加载状态
+        function updateLoadingStatus() {
+            const progress = Math.floor((layersLoaded / totalLayers) * 100);
+            statusBar.textContent = `加载数据... ${progress}%`;
+            
+            if (layersLoaded === totalLayers) {
+                setTimeout(() => {
+                    loadingOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                        statusBar.textContent = '所有行政区数据已加载';
+                    }, 300);
+                }, 500);
+            }
+        }
+        
+        // 更新地图坐标显示
+        function updateCoordinates() {
+            const center = map.getCenter();
+            const zoom = map.getZoom().toFixed(2);
+            const lat = center.lat.toFixed(4);
+            const lng = center.lng.toFixed(4);
+            
+            statusBar.textContent = `坐标: 经度 ${lng}°, 纬度 ${lat}° | 缩放: ${zoom}`;
+        }
+        
+        // 显示要素信息
+        function displayFeatureInfo(feature) {
+            const infoWindow = document.getElementById('info-window');
+            const featureName = document.getElementById('feature-name');
+            const propertiesContainer = document.getElementById('feature-properties');
+            
+            // 清空属性容器
+            propertiesContainer.innerHTML = '';
+            
+            // 设置要素名称
+            featureName.textContent = feature.properties.name || 
+                                     feature.properties.NAME || 
+                                     feature.properties.title || 
+                                     '行政区信息';
+            
+            // 根据图层类型添加级别信息
+            let adminLevel = '';
+            if (feature.layer.id.includes('province')) {
+                adminLevel = '省级行政区';
+            } else if (feature.layer.id.includes('city')) {
+                adminLevel = '市级行政区';
+            } else if (feature.layer.id.includes('county')) {
+                adminLevel = '县级行政区';
+            }
+            
+            if (adminLevel) {
+                propertiesContainer.innerHTML += `<div class="property-row">
+                    <span class="property-name">行政级别:</span>
+                    <span class="property-value">${adminLevel}</span>
+                </div>`;
+            }
+            
+            // 添加所有属性（排除ID和geometry）
+            for (const key in feature.properties) {
+                if (key !== 'id' && 
+                    !key.toLowerCase().includes('geom') && 
+                    key !== 'source' && 
+                    key !== 'source:date') {
+                        
+                    const value = feature.properties[key] || '无数据';
+                    propertiesContainer.innerHTML += `<div class="property-row">
+                        <span class="property-name">${key}:</span>
+                        <span class="property-value">${value}</span>
+                    </div>`;
+                }
+            }
+            
+            // 显示信息窗口（右侧）
+            infoWindow.classList.add('active');
+        }
+        
+        // 辅助函数：十六进制转RGB
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 0, g: 0, b: 0 };
+        }
+        
+        // 辅助函数：RGB转十六进制
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+        
+        // 新增：图例联动
+        function setupLegendSync(layerType) {
+            // 监听所有相关控件
+            const fillColorPicker = document.getElementById(`${layerType}-fill-color`);
+            const fillR = document.getElementById(`${layerType}-fill-r`);
+            const fillG = document.getElementById(`${layerType}-fill-g`);
+            const fillB = document.getElementById(`${layerType}-fill-b`);
+            const fillOpacityInput = document.getElementById(`${layerType}-opacity-input`);
+            const borderColorPicker = document.getElementById(`${layerType}-border-color`);
+            const borderR = document.getElementById(`${layerType}-border-r`);
+            const borderG = document.getElementById(`${layerType}-border-g`);
+            const borderB = document.getElementById(`${layerType}-border-b`);
+            const borderOpacityInput = document.getElementById(`${layerType}-border-opacity-input`);
+            const lineWidthInput = document.getElementById(`${layerType}-line-width-input`);
+            const lineStyleSelect = document.getElementById(`${layerType}-line-style`);
+            // 绑定事件
+            [fillColorPicker, fillR, fillG, fillB, fillOpacityInput,
+             borderColorPicker, borderR, borderG, borderB, borderOpacityInput,
+             lineWidthInput, lineStyleSelect].forEach(el => {
+                el.addEventListener('input', () => updateLegend(layerType));
+                el.addEventListener('change', () => updateLegend(layerType));
+            });
+            // 初始化
+            updateLegend(layerType);
+        }
+        // 新增：更新图例样式
+        function updateLegend(layerType) {
+            // 填充色
+            const r = parseInt(document.getElementById(`${layerType}-fill-r`).value) || 0;
+            const g = parseInt(document.getElementById(`${layerType}-fill-g`).value) || 0;
+            const b = parseInt(document.getElementById(`${layerType}-fill-b`).value) || 0;
+            const fillOpacity = (parseInt(document.getElementById(`${layerType}-opacity-input`).value) || 0) / 100;
+            // 边界色
+            const br = parseInt(document.getElementById(`${layerType}-border-r`).value) || 0;
+            const bg = parseInt(document.getElementById(`${layerType}-border-g`).value) || 0;
+            const bb = parseInt(document.getElementById(`${layerType}-border-b`).value) || 0;
+            const borderOpacity = (parseInt(document.getElementById(`${layerType}-border-opacity-input`).value) || 0) / 100;
+            // 线宽
+            const lineWidth = parseFloat(document.getElementById(`${layerType}-line-width-input`).value) || 1;
+            // 线型
+            const lineStyle = document.getElementById(`${layerType}-line-style`).value;
+            // 图例元素
+            const legendColor = document.getElementById(`legend-${layerType}-color`);
+            // 填充色
+            legendColor.style.backgroundColor = `rgba(${r},${g},${b},${fillOpacity})`;
+            // 边框色和宽度
+            legendColor.style.border = `${lineWidth * 2}px ${getLegendBorderStyle(lineStyle)} rgba(${br},${bg},${bb},${borderOpacity})`;
+            // 线型
+            legendColor.style.borderStyle = getLegendBorderStyle(lineStyle);
+        }
+        // 新增：图例线型映射
+        function getLegendBorderStyle(lineStyle) {
+            switch(lineStyle) {
+                case 'dashed': return 'dashed';
+                case 'dotted': return 'dotted';
+                case 'dash-dot': return 'dashed'; // 近似
+                default: return 'solid';
+            }
+        }
+        
+        // 自定义比例尺动态显示实际距离
+        function updateCustomScaleBar() {
+            const scaleBar = document.getElementById('scale-bar-svg');
+            const label = document.getElementById('scale-bar-label');
+            if (!scaleBar || !label) return;
+            // 5cm在屏幕上的像素长度
+            const pxLength = 130; // svg宽度
+            // 获取地图上5cm对应的实际距离
+            const mapCanvas = map.getCanvas();
+            const rect = mapCanvas.getBoundingClientRect();
+            // 计算地图中心点的经纬度
+            const center = map.getCenter();
+            // 计算5cm在当前缩放下的实际距离
+            // 1. 计算5cm在屏幕上的像素
+            // 2. 计算地图上这段像素的经纬度跨度
+            // 3. 计算实际距离
+            // 取中心点像素
+            const y = rect.height / 2;
+            const x1 = rect.width / 2 - pxLength / 2;
+            const x2 = rect.width / 2 + pxLength / 2;
+            // 屏幕像素转地理坐标
+            const lngLat1 = map.unproject([x1, y]);
+            const lngLat2 = map.unproject([x2, y]);
+            // 计算距离（米）
+            const R = 6371000;
+            const toRad = d => d * Math.PI / 180;
+            const dLat = toRad(lngLat2.lat - lngLat1.lat);
+            const dLng = toRad(lngLat2.lng - lngLat1.lng);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(toRad(lngLat1.lat)) * Math.cos(toRad(lngLat2.lat)) * Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const dist = R * c;
+            // 格式化距离
+            let text = '';
+            if (dist >= 1000) {
+                text = (dist/1000).toFixed(2) + ' km';
+            } else if (dist >= 1) {
+                text = dist.toFixed(0) + ' m';
+            } else {
+                text = (dist*100).toFixed(0) + ' cm';
+            }
+            label.textContent = text;
+        }
+        map.on('move', updateCustomScaleBar);
+        map.on('zoom', updateCustomScaleBar);
+        map.on('resize', updateCustomScaleBar);
+        map.on('load', updateCustomScaleBar);
+        
+        // 初始化地图
+        map.on('load', initMap);
+
+        // 图层设置面板默认值（同步UI控件）
+        window.addEventListener('DOMContentLoaded', function() {
+            // 省级
+            document.getElementById('province-fill-color').value = '#f59494';
+            document.getElementById('province-fill-r').value = 245;
+            document.getElementById('province-fill-g').value = 148;
+            document.getElementById('province-fill-b').value = 148;
+            document.getElementById('province-border-color').value = '#9c9c9c';
+            document.getElementById('province-border-r').value = 156;
+            document.getElementById('province-border-g').value = 156;
+            document.getElementById('province-border-b').value = 156;
+            document.getElementById('province-border-opacity-slider').value = 20;
+            document.getElementById('province-border-opacity-input').value = 20;
+            document.getElementById('province-opacity-slider').value = 30;
+            document.getElementById('province-opacity-input').value = 30;
+            document.getElementById('province-line-width-slider').value = 2;
+            document.getElementById('province-line-width-input').value = 2;
+            document.getElementById('province-line-style').value = 'solid';
+            // 市级
+            document.getElementById('city-fill-color').value = '#ffffff';
+            document.getElementById('city-fill-r').value = 255;
+            document.getElementById('city-fill-g').value = 255;
+            document.getElementById('city-fill-b').value = 255;
+            document.getElementById('city-border-color').value = '#828282';
+            document.getElementById('city-border-r').value = 130;
+            document.getElementById('city-border-g').value = 130;
+            document.getElementById('city-border-b').value = 130;
+            document.getElementById('city-border-opacity-slider').value = 20;
+            document.getElementById('city-border-opacity-input').value = 20;
+            document.getElementById('city-opacity-slider').value = 0;
+            document.getElementById('city-opacity-input').value = 0;
+            document.getElementById('city-line-width-slider').value = 1;
+            document.getElementById('city-line-width-input').value = 1;
+            document.getElementById('city-line-style').value = 'solid';
+            // 县级
+            document.getElementById('county-fill-color').value = '#ffffff';
+            document.getElementById('county-fill-r').value = 255;
+            document.getElementById('county-fill-g').value = 255;
+            document.getElementById('county-fill-b').value = 255;
+            document.getElementById('county-border-color').value = '#787878';
+            document.getElementById('county-border-r').value = 120;
+            document.getElementById('county-border-g').value = 120;
+            document.getElementById('county-border-b').value = 120;
+            document.getElementById('county-border-opacity-slider').value = 20;
+            document.getElementById('county-border-opacity-input').value = 20;
+            document.getElementById('county-opacity-slider').value = 0;
+            document.getElementById('county-opacity-input').value = 0;
+            document.getElementById('county-line-width-slider').value = 1;
+            document.getElementById('county-line-width-input').value = 1;
+            document.getElementById('county-line-style').value = 'dotted';
+        });
+    </script>
+</body>
+</html>
